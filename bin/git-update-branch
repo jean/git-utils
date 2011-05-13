@@ -1,0 +1,76 @@
+#!/bin/bash
+
+# Find where we are (so we can reset to there later)
+head="$(git rev-parse --verify -q HEAD)"
+if [ -z "$head" ]; then
+    echo "fatal: Not a git repository (or any parent up to mount parent)" >&2
+    exit 1
+fi
+
+# Abort if the index and working tree are not clean
+if [ $(git status --porcelain -uno | wc -l) -ne 0 ]; then
+    echo "Refusing to update while your working tree is dirty" >&2
+    exit 1
+fi
+
+# Get name of the current branch; use as head if it exists
+headbranch="$(git branch | sed -n '/^[*]/s/^..//p')"
+if git rev-parse --verify -q "refs/heads/$headbranch" >/dev/null; then
+    head="$headbranch"
+fi
+
+# Get arguments
+branch="${1:-$headbranch}"
+upstream="${2:-master}"
+
+# Verify validity of arguments
+if ! git rev-parse --verify -q "refs/heads/$branch" >/dev/null; then
+    if [ -z "$1" ]; then
+        echo "fatal: branch name must be specified when HEAD is detached"
+    else
+        echo "fatal: branch '$1' did not match any branch known to git"
+    fi
+    exit 1
+fi
+
+if ! git rev-parse --verify -q "$upstream" >/dev/null; then
+    echo "fatal: bad revision '$upstream'"
+    exit 1
+fi
+
+if [ "$(git rev-parse "$branch")" = "$(git rev-parse "$upstream")" ]; then
+    echo "fatal: branch and upstream are the same" >&2
+    exit 1
+fi
+
+# Clean up on errors
+function die {
+    [ $2 -gt 1 ] && git reset --hard
+    [ $2 -gt 0 ] && git checkout "$head"
+    [ $2 -gt 1 ] && git branch -D "$branch-update"
+    exit $1
+}
+
+echo "head = '$head'"
+echo "branch = '$branch'"
+echo "upstream = '$upstream'"
+
+# Check out upstream
+git checkout "$upstream" || die $? 0
+
+# Create update branch
+git checkout -b "$branch-update" || die $? 1
+
+# Merge source branch onto update branch
+git merge "$branch" || die $? 2
+
+# Fast forward branch to update
+git checkout "$branch" || die $? 2
+git merge --ff-only "$branch-update" || die $? 2
+
+# Clean up the temporary branch
+git branch -d "$branch-update"
+
+# Reset to original working state
+git checkout "$head" || die $? 0
+exit 0
