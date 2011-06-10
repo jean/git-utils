@@ -1,5 +1,5 @@
 '\" t
-.\" based on the manpage for git-branch, 1.7.4.4
+.\" based on existing git 1.7.4.4 manpages
 .TH "GIT\-UPDATE\-BRANCH" "1" "05/13/2011" "User Git" "User Git Manual"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
@@ -25,23 +25,79 @@ git-update-branch \- Update a branch by merging onto an upstream branch
 .SH "SYNOPSIS"
 .sp
 .nf
-\fIgit update-branch\fR [<branchname>] [<upstream>]
+\fIgit update-branch\fR [<branchname> [<upstream>]]
 .fi
 .sp
+.sp
+\fIgit update-branch\fR \-\-continue | \-\-abort
 .SH "DESCRIPTION"
 .sp
-This command updates a branch by checking out the specified upstream,
+Update a branch by checking out the specified upstream,
 merging the branch onto upstream,
-and fast forwarding the branch to the result of this merge.
-If <branchname> is not specified, the current branch is updated.
-If <upstream> is not specified, "master" is assumed.
+and fast forwarding the branch to the result of this merge\&.
+.sp
+In case of conflict, \fIgit update-branch\fR will stop at the merge
+and leave conflict markers in the tree\&.
+After resolving the conflict manually and committing the merge,
+you can continue the update process with
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+git update-branch \-\-continue
+.fi
+.if n \{\
+.RE
+.\}
+.sp
+Alternatively, you can cancel the \fIgit update-branch\fR with
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+git update-branch \-\-abort
+.fi
+.if n \{\
+.RE
+.\}
+.SH "OPTIONS"
+.PP
+<branchname>
+.RS 4
+The branch that will be updated\&.
+If not specified, the current branch is used\&.
+.RE
+.PP
+<upstream>
+.RS 4
+Upstream branch to which the branch should be updated\&.
+May be any valid commit, not just an existing branch name\&.
+Defaults to "master"\&.
+.RE
+.PP
+\-\-continue
+.RS 4
+Restart the update operation after having resolved a merge conflict\&.
+.RE
+.PP
+\-\-abort
+.RS 4
+Restore the original branch and abort the update operation\&.
 .RE
 .SH "SEE ALSO"
 .sp
-\fBgit-branch\fR(1), \fBgit-merge\fR(1).
+\fBgit-branch\fR(1), \fBgit-merge\fR(1)\&.
 .SH "AUTHOR"
 .sp
-Written by Matthew Woehlke <\m[blue]\fBmatthew.woehlke@kitware\&.com\fR\m[]\&\s-2\u[2]\d\s+2>
+Written by Matthew Woehlke <\m[blue]\fBmatthew\&.woehlke@kitware\&.com\fR\m[]\&\s-2\u[1]\d\s+2>
 .SH "DOCUMENTATION"
 .sp
-Documentation by Matthew Woehlke.
+Documentation by Matthew Woehlke\&.
+.SH "NOTES"
+.IP " 1." 4
+matthew.woehlke@kitware.com
+.RS 4
+\%mailto:matthew.woehlke@kitware.com
+.RE

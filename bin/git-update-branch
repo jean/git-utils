@@ -1,5 +1,39 @@
 #!/bin/bash
 
+# Check if index is dirty
+function checkindex {
+    [ $(git status --porcelain -uno | wc -l) -eq 0 ]
+}
+
+# Clean up from error and exit
+function abort {
+    [ $2 -gt 1 ] && git reset --hard
+    [ $2 -gt 0 ] && git checkout "$head"
+    [ $2 -gt 1 ] && git branch -D "$branch-update"
+    cleanup $1
+}
+
+# Clean up and exit
+function cleanup {
+    rm -rf "$gitroot"/update-branch
+    exit $1
+}
+
+# Quit on merge conflicts and allow user to fix things
+function die {
+    echo >&2
+    echo "When you have resolved this problem" \
+         "run \"git update-branch --continue\"." >&2
+    echo "To restore the original branch and stop updating" \
+         "run \"git update-branch --abort\"." >&2
+    # Dump state so we can abort or resume
+    mkdir -p "$gitroot"/update-branch
+    echo "$head" > "$gitroot"/update-branch/orig-head
+    echo "$branch" > "$gitroot"/update-branch/branch
+    echo "$upstream" > "$gitroot"/update-branch/upstream
+    exit 1
+}
+
 # Find where we are (so we can reset to there later)
 head="$(git rev-parse --verify -q HEAD)"
 if [ -z "$head" ]; then
@@ -7,21 +41,60 @@ if [ -z "$head" ]; then
     exit 1
 fi
 
-# Abort if the index and working tree are not clean
-if [ $(git status --porcelain -uno | wc -l) -ne 0 ]; then
-    echo "Refusing to update while your working tree is dirty" >&2
-    exit 1
-fi
-
-# Get name of the current branch; use as head if it exists
-headbranch="$(git branch | sed -n '/^[*]/s/^..//p')"
-if git rev-parse --verify -q "refs/heads/$headbranch" >/dev/null; then
-    head="$headbranch"
-fi
-
 # Get arguments
-branch="${1:-$headbranch}"
-upstream="${2:-master}"
+gitroot="$(git rev-parse --git-dir)"
+rs=
+if [ "$1" = '--continue' ] || [ "$1" = '--abort' ]; then
+    # Get state from previous operation
+    if [ -f "$gitroot"/update-branch/orig-head ] \
+    && [ -f "$gitroot"/update-branch/branch ] \
+    && [ -f "$gitroot"/update-branch/upstream ]; then
+        read head < "$gitroot"/update-branch/orig-head
+        read branch < "$gitroot"/update-branch/branch
+        read upstream < "$gitroot"/update-branch/upstream
+    else
+        echo "No update-branch in progress?" >&2
+        exit 1
+    fi
+    # Select requested action
+    if [ "$1" = '--continue' ]; then
+        # Continue; abort if the merge has not been committed yet
+        if ! checkindex; then
+            echo "Refusing to resume while your working tree is dirty" >&2
+            echo "Did you remember to resolve and commit the merge?" >&2
+            exit 1
+        fi
+        rs=1
+    else
+        # Abort; reset to previous state
+        abort 0 2
+    fi
+else
+    # Check for operation in progress
+    if [ -d "$gitroot"/update-branch ]; then
+        echo "It seems you are already in the middle of a branch update." >&2
+        echo "If that is not the case, please" >&2
+        printf "\trm -fr $gitroot/update-branch\n" >&2
+        echo "and run me again.  I am stopping in case you still have" >&2
+        echo "something valuable there." >&2
+        exit 1
+    else
+        # Abort if the index and working tree are not clean
+        if ! checkindex; then
+            echo "Refusing to update while your working tree is dirty" >&2
+            exit 1
+        fi
+
+        # Get name of the current branch; use as head if it exists
+        headbranch="$(git branch | sed -n '/^[*]/s/^..//p')"
+        if git rev-parse --verify -q "refs/heads/$headbranch" >/dev/null; then
+            head="$headbranch"
+        fi
+
+        branch="${1:-$headbranch}"
+        upstream="${2:-master}"
+    fi
+fi
 
 # Verify validity of arguments
 if ! git rev-parse --verify -q "refs/heads/$branch" >/dev/null; then
@@ -43,34 +116,28 @@ if [ "$(git rev-parse "$branch")" = "$(git rev-parse "$upstream")" ]; then
     exit 1
 fi
 
-# Clean up on errors
-function die {
-    [ $2 -gt 1 ] && git reset --hard
-    [ $2 -gt 0 ] && git checkout "$head"
-    [ $2 -gt 1 ] && git branch -D "$branch-update"
-    exit $1
-}
-
 echo "head = '$head'"
 echo "branch = '$branch'"
 echo "upstream = '$upstream'"
 
-# Check out upstream
-git checkout "$upstream" || die $? 0
+if [ -z $rs ]; then
+    # Check out upstream
+    git checkout "$upstream" || abort $? 0
 
-# Create update branch
-git checkout -b "$branch-update" || die $? 1
+    # Create update branch
+    git checkout -b "$branch-update" || abort $? 1
 
-# Merge source branch onto update branch
-git merge "$branch" || die $? 2
+    # Merge source branch onto update branch
+    git merge "$branch" || die $?
+fi
 
 # Fast forward branch to update
-git checkout "$branch" || die $? 2
-git merge --ff-only "$branch-update" || die $? 2
+git checkout "$branch" || abort $? 2
+git merge --ff-only "$branch-update" || abort $? 2
 
 # Clean up the temporary branch
 git branch -d "$branch-update"
 
 # Reset to original working state
-git checkout "$head" || die $? 0
-exit 0
+git checkout "$head" || abort $? 0
+cleanup 0
