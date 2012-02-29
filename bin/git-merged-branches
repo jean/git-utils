@@ -1,0 +1,63 @@
+#!/bin/bash
+
+declare -a revlist_args
+declare -a branches
+declare -a exclude_branches
+
+usage() {
+  exit 1
+}
+
+push() {
+  local var="$1"
+  shift 1
+  for a in "$@"; do
+    eval $var[\$\{#$var[@]}]=\"\$a\";
+  done
+}
+
+if [ -z "$*" ]; then
+    echo "fatal: no refs given" >&2
+    exit 1
+fi
+
+while [ -n "$*" ]; do
+    if [ "$1" = "-x" ] || [ "$1" = "--not" ]; then
+        opt="$1"
+        shift 1
+        if [ -z "$*" ] || [ "${1:0:1}" = "-" ]; then
+            echo "fatal: $opt requires an argument" >&2
+            exit 1
+        fi
+        push revlist_args "^$1"
+        push exclude_branches "^$1"
+    elif [ "${1:0:1}" = "-" ]; then
+        echo "fatal: unrecognized option, '$1'" >&2
+        exit 1
+    elif [ "${1:0:1}" = "^" ]; then
+        push revlist_args "${1:1}"
+        push exclude_branches "$1"
+    else
+        push revlist_args "$1"
+        push branches "$1"
+    fi
+    shift 1
+done
+
+# Get list of merge commits
+declare -a merges
+while read sha; do
+    push merges $sha
+done < <(git rev-list --merges "${revlist_args[@]}")
+
+# Determine which merged commits are not reachable from excluded branches
+for sha in ${merges[*]}; do
+    msha=$(git rev-parse $sha^2)
+    [ -z "$msha" ] && continue
+
+    if [ -n "$(git rev-list $msha "${exclude_branches[@]}")" ]; then
+        # Branch is not reachable from any excluded branches
+        name="$(git log -1 --oneline $sha | sed -e "s/^[^']*'//" -e "s/'[^']*$//")"
+        echo ${msha:0:8} "$name"
+    fi
+done
