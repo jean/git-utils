@@ -128,7 +128,7 @@ if [ -z $rs ]; then
     git checkout -b "$branch-update" || abort $? 1
 
     # Merge source branch onto update branch
-    git merge "$branch" || die $?
+    git merge --no-edit "$branch" || die $?
 fi
 
 # Fast forward branch to update
