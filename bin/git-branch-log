@@ -1,7 +1,7 @@
 #!/bin/bash
 
 usage() {
-  echo "git branch-log <branch> [<upstream>] [--] [<git-log options>]"
+  echo "git branch-log [<branch> [<upstream>]] [--] [<git-log options>]"
   exit 1
 }
 
@@ -9,14 +9,16 @@ usage() {
 git rev-parse --is-inside-work-tree >&- || exit $?
 
 # Get branch name and upstream name
-branch="$1"
-shift 1
+branch=HEAD
+upstream="$(git config branchlog.defaultbase)"
+upstream="${upstream:-master}"
 if [ -n "$1" ] && [ "${1:0:1}" != "-" ]; then
-  upstream="$1"
+  branch="$1"
   shift 1
-else
-  upstream="$(git config branchlog.defaultbase)"
-  upstream="${upstream:-master}"
+  if [ -n "$1" ] && [ "${1:0:1}" != "-" ]; then
+    upstream="$1"
+    shift 1
+  fi
 fi
 
 [ "$1" == "--" ] && shift 1

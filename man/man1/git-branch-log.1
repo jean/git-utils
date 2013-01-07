@@ -25,12 +25,14 @@ git-branch-log \- Show log of branch since it diverged from upstream
 .SH "SYNOPSIS"
 .sp
 .nf
-\fIgit branch-log\fR <branch> [<upstream>] [--] [<git-log options>]
+\fIgit branch-log\fR [<branch> [<upstream>]] [--] [<git-log options>]
 .SH "DESCRIPTION"
 .sp
 Show the git log of the named branch since it diverged from upstream\&.
 This is a convenient way to see the log of a branch starting from the point
 at which the branch was created\&.
+If no branch is specified, the log for the currently checked out SHA
+(i.e. "HEAD") is shown\&.
 .SH "CONFIGURATION"
 .PP
 branchlog.defaultbase
