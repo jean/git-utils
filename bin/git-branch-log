@@ -1,0 +1,29 @@
+#!/bin/bash
+
+usage() {
+  echo "git branch-log <branch> [<upstream>] [--] [<git-log options>]"
+  exit 1
+}
+
+# Make sure we are in a git directory
+git rev-parse --is-inside-work-tree >&- || exit $?
+
+# Get branch name and upstream name
+branch="$1"
+shift 1
+if [ -n "$1" ] && [ "${1:0:1}" != "-" ]; then
+  upstream="$1"
+  shift 1
+else
+  upstream="$(git config branchlog.defaultbase)"
+  upstream="${upstream:-master}"
+fi
+
+[ "$1" == "--" ] && shift 1
+
+# Get merge-base
+upstream="$(git merge-base "$branch" "$upstream")"
+[ -n "$upstream" ] || exit $?
+
+# Show log
+exec git log "$upstream..$branch" "$@"
