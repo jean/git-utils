@@ -1,0 +1,36 @@
+#!/bin/bash
+
+die()
+{
+  echo "fatal: $1." >&2
+  exit 1
+}
+
+# Make sure we are in a git directory
+git rev-parse --is-inside-work-tree >&- || exit $?
+
+# Get current branch
+upstream="$(git rev-parse --abbrev-ref --symbolic-full-name @{u})"
+[ $? -eq 0 ] || exit $?
+upstream="${upstream#*/}"
+
+# Update remotes
+git fetch --all
+
+# Apply fast-forward merge of all remotes
+actions=
+while read remote; do
+  c="$remote/$upstream"
+  if git rev-parse --verify --quiet "$c" >/dev/null; then
+    if git merge-base --is-ancestor "$c" HEAD; then
+      actions=u$actions
+    else
+      echo "Applying commits from $c"
+      git merge --ff-only "$c"
+      actions=m$actions
+    fi
+  fi
+done < <(git remote)
+
+[ -n "$actions" ] && [ -z "${actions//u/}" ] && echo "Already up-to-date."
+exit 0
