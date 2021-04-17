@@ -1,7 +1,7 @@
 #!/bin/bash
 
 usage() {
-  echo "git branch-log [<branch> [<upstream>]] [--] [<git-log options>]"
+  echo "git merge-point [<branch> [<upstream>]] [--] [<git-log options>]"
   exit 1
 }
 [ -n "$1" ] || usage
